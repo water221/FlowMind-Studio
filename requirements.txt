@@ -1,0 +1,13 @@
+# 核心框架
+langgraph>=0.0.26
+langchain-core>=0.1.30
+langchain-openai>=0.0.8  # 用于调用通用大模型接口
+langchain-google-genai>=0.0.10 # 既然你配置了Gemini，这个包可以方便调用
+
+# 数据验证与状态管理
+pydantic>=2.6.0
+typing-extensions>=4.9.0
+
+# 网络请求与环境变量 (用于对接飞书 Webhook 和读取 .env)
+requests>=2.31.0
+python-dotenv>=1.0.1

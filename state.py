@@ -22,3 +22,35 @@ class StudioState(TypedDict):
     is_approved: bool                  # 主编是否通过？
     revision_feedback: str             # 如果没通过，修改意见是什么？
     current_agent: str                 # 记录当前轮到哪个 Agent 干活
+
+    # 【新增】6. 工程保护机制
+    loop_count: int                    # 记录被打回重做的次数
+
+
+    # 这是一个标准的 LangGraph 路由函数，它接收当前的 state，返回下一步要去的节点名称（字符串）
+def route_after_editor(state: StudioState) -> str:
+    """
+    Agent D (主编) 执行完后，根据状态决定去向。
+    返回 "END" 结束图，或者返回 "copywriter" 节点名称打回重做。
+    """
+    is_approved = state.get("is_approved", False)
+    loop_count = state.get("loop_count", 0)
+    
+    # 面试亮点：防死循环机制
+    MAX_RETRIES = 2 
+    
+    if is_approved:
+        print("✅ 主编审核通过！准备将图文/视频推送到飞书。")
+        return "approved"  # 这个字符串会映射到 LangGraph 的 END 节点
+        
+    elif loop_count >= MAX_RETRIES:
+        # 如果已经重做了 2 次还是不合格，强制停止，避免 API 计费失控
+        print(f"⚠️ 警告：已达到最大重做次数 ({MAX_RETRIES}次)。强制输出当前结果。")
+        # 实际业务中，这里可以发一条飞书消息告诉用户：“这已经是尽力生成的版本了...”
+        return "approved"  
+        
+    else:
+        # 审核不通过，且还有重试机会，打回 Agent B 重新写文案和 Prompt
+        print(f"❌ 审核不通过。打回重做。当前重试次数: {loop_count}。")
+        print(f"主编反馈意见: {state.get('revision_feedback')}")
+        return "rejected" # 这个字符串会映射回 "copywriter" 节点
