@@ -28,20 +28,53 @@ def run_project_demo():
     print_separator("开始流水线作业")
     
     # app.stream 允许我们看到每一个 Agent (节点) 的流式输出结果
-    # config 中可以配置 recurse_limit (防止图无限死循环跑爆)
-    config = {"recursion_limit": 10}
+    # configurable 中的 thread_id 用于区分不同用户的聊天会话，实现各自状态的隔离恢复
+    config = {
+        "configurable": {"thread_id": "demo_thread_001"},
+        "recursion_limit": 10
+    }
     
     try:
-        final_state = None
+        # 维护一个完整的状态字典
+        current_state = initial_state.copy()
+        
+        # --- 第一次执行阶段：运行到人工审核拦截点之前 ---
         for step_result in app.stream(initial_state, config):
             for agent_name, state_update in step_result.items():
                 print(f"\n📦 当前处理节点: [{agent_name}]")
-                # 这里可以对阶段性的局部状态做简单的打印展示
-                if "final_copywriting" in state_update:
-                    print(f"📝 截获文案:\n{state_update['final_copywriting']}")
+                current_state.update(state_update)
                 
-                # 记录最后一步更新的状态来做最终拼装
-                final_state = state_update
+                if "final_copywriting" in state_update:
+                    print(f"📝 截获文案片段:\n{state_update['final_copywriting']}")
+                    
+        # --- 查看当前图流转状态，触发风控卡点（HITL） ---
+        state_status = app.get_state(config)
+        next_node = state_status.next
+        
+        if "generator" in next_node:
+            print("\n" + "="*50)
+            print("🚨 【触发风控断点 / HITL】🚨")
+            print("➡️ Agent B 已完成文案和分镜设计。接下来将调用[高成本生图API]。")
+            print("请主编(即正在运行测试的您)评估前置文案和分镜质量：")
+            print(f"当前准备使用的提示词数：{len(current_state.get('visual_prompts', []))}个")
+            print("="*50)
+            
+            user_decision = input("\n请问是否授权放行(Y/N)？ (输入 'y' 继续生成，输入 'n' 驳回整条流程): ")
+            
+            if user_decision.strip().lower() == 'y':
+                print("\n✅ 人工审批通过，授权继续...")
+                # 重新恢复图的运行，入参为 None 表示接着原来的断点状态继续往下跑
+                for step_result in app.stream(None, config):
+                    for agent_name, state_update in step_result.items():
+                        print(f"\n📦 当前处理节点(续): [{agent_name}]")
+                        current_state.update(state_update)
+            else:
+                print("\n❌ 审批不通过，工作流已终止。")
+                # 不再执行 generator，直接结束并返回
+                return
+                
+        # 记录最后拼装完成的全部状态
+        final_state = current_state
                 
     except Exception as e:
         print(f"\n❌ 图执行过程中发生错误: {e}")

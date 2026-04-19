@@ -51,8 +51,17 @@ def agent_d_editor(state: StudioState) -> dict:
 """)
     ])
     
-    # 3. 初始化评价模型 (LLM-as-a-Judge 通常选用推理能力最强的模型，如 GPT-4o)
-    llm = ChatOpenAI(model="gpt-4o", temperature=0.1)  # temperature拉低，保证评判的稳定性和一致性
+    import os
+    # 3. 初始化评价模型 (LLM-as-a-Judge 使用火山方舟 API)
+    ark_model_id = os.environ.get("ARK_MODEL_ID", "请在此处填入你的火山模型接入点id(ep-...)")
+    ark_api_key = os.environ.get("ARK_API_KEY", "")
+
+    llm = ChatOpenAI(
+        model=ark_model_id,
+        api_key=ark_api_key,
+        base_url="https://ark.cn-beijing.volces.com/api/v3",
+        temperature=0.1
+    )  # temperature拉低，保证评判的稳定性和一致性
     structured_llm = llm.with_structured_output(EditorOutput)
     
     chain = prompt_template | structured_llm

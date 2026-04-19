@@ -1,4 +1,7 @@
 from langgraph.graph import StateGraph, END
+import sqlite3
+from langgraph.checkpoint.sqlite import SqliteSaver
+
 from state import StudioState, route_after_editor
 from agent_a_analyst import agent_a_analyst
 from agent_b_copywriter import agent_b_copywriter
@@ -27,5 +30,13 @@ workflow.add_conditional_edges(
     }
 )
 
-app = workflow.compile()
+# 配置 SqliteSaver 持久化，存放在本地 checkpoints.sqlite 文件中
+conn = sqlite3.connect("checkpoints.sqlite", check_same_thread=False)
+memory = SqliteSaver(conn)
+
+# 编译图时，加入持久化记忆配置，并设定风控断点 (在执行 generator 前强行停止)
+app = workflow.compile(
+    checkpointer=memory,
+    interrupt_before=["generator"]
+)
 

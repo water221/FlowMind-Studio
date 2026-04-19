@@ -10,6 +10,9 @@ class StudioState(TypedDict):
     content_brief: str                 # 创作简报（主题、风格等）
     target_format: str                 # "图文" 或 "视频"
     
+    # 补充 RAG 的【长期品牌知识】上下文
+    brand_knowledge: str               # 经过 ChromaDB 检索并准备投喂给 Agent B 的参考约束
+    
     # 3. 文案创作结果 (Agent B 输出)
     final_copywriting: str             # 最终用于小红书/飞书的文案
     visual_prompts: List[str]          # 拆解出来的，专门给生图/生视频 API 用的提示词

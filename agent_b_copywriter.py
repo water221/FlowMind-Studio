@@ -23,6 +23,9 @@ def agent_b_copywriter(state: StudioState) -> dict:
     feedback = state.get("revision_feedback", "")
     loop_count = state.get("loop_count", 0)
     
+    # 获取刚在上一步捞出的 RAG 品牌约束字典
+    brand_rule = state.get("brand_knowledge", "无特殊品牌约束。")
+    
     # 2. 修改建议注入逻辑 (核心亮点：处理打回重做的逻辑)
     revision_context = ""
     if feedback and loop_count > 0:
@@ -38,7 +41,11 @@ def agent_b_copywriter(state: StudioState) -> dict:
    - 如果目标格式是"视频"，文案应偏向短视频旁白配音/解说脚本。
 2. 具体的视觉提示词列表（visual_prompts）。
    - 这是给下游的生图/生视频模型(MidJourney/Sora等)直接使用的纯英文或详细中文描述。
-   - 请拆解成 2~4 个不同的画面。如果是图片，注意描述构图、色彩、镜头(如: 8k, photorealistic, cinematic lighting)。如果是视频，注意描述镜头运动和主体动作(如: camera panning, slow motion)。{revision_context}
+   - 请拆解成 2~4 个不同的画面。如果是图片，注意描述构图、色彩、镜头(如: 8k, photorealistic, cinematic lighting)。如果是视频，注意描述镜头运动和主体动作(如: camera panning, slow motion)。
+   
+【重要强制规范 (来自企业品牌知识库的检索结果 RAG)】
+{brand_rule}
+   {revision_context}
 """),
         ("user", """【创作简报】
 {brief}
@@ -50,8 +57,17 @@ def agent_b_copywriter(state: StudioState) -> dict:
 """)
     ])
     
-    # 4. 初始化 LLM，绑定结构化输出 (使用较强模型保证文案和提示词质量)
-    llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
+    import os
+    # 4. 初始化 LLM，绑定结构化输出 (使用火山方舟 API)
+    ark_model_id = os.environ.get("ARK_MODEL_ID", "请在此处填入你的火山模型接入点id(ep-...)")
+    ark_api_key = os.environ.get("ARK_API_KEY", "")
+
+    llm = ChatOpenAI(
+        model=ark_model_id,
+        api_key=ark_api_key,
+        base_url="https://ark.cn-beijing.volces.com/api/v3",
+        temperature=0.7
+    )
     structured_llm = llm.with_structured_output(CopywriterOutput)
     
     chain = prompt_template | structured_llm
@@ -60,6 +76,7 @@ def agent_b_copywriter(state: StudioState) -> dict:
         result = chain.invoke({
             "brief": brief,
             "target_format": target_format,
+            "brand_rule": brand_rule,
             "revision_context": revision_context
         })
         

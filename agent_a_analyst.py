@@ -2,6 +2,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 from state import StudioState
+from knowledge_base import retrieve_knowledge
 
 # 定义期待的结构化输出格式
 class AnalystOutput(BaseModel):
@@ -20,6 +21,10 @@ def agent_a_analyst(state: StudioState) -> dict:
     input_images = state.get("input_images", [])
     input_links = state.get("input_links", [])
     
+    # 🌟 [RAG 亮点]: 在理解意图时，顺手去企业词向量知识库里把最接近该意图的“标杆/指导原则”捞出来
+    brand_rule = retrieve_knowledge(user_input, n_results=2)
+    print(f"📖 触发 RAG 检索！命中品牌规则：\n   {brand_rule}")
+
     # 2. 构造 Prompt，指导大模型进行意图识别
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", """你是一个资深的宣发媒体策划（Analyst / 感知器）。
@@ -37,9 +42,18 @@ def agent_a_analyst(state: StudioState) -> dict:
 """)
     ])
     
-    # 3. 初始化 LLM 并绑定结构化输出 (这里以 GPT-4o 或 GPT-3.5 为例)
-    # 在实际运行前需要确保环境变量中配置了 OPENAI_API_KEY，或替换为其他模型
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
+    import os
+    # 3. 初始化 LLM 并绑定结构化输出 (接入火山方舟 API)
+    # 通过环境变量读取火山的接入点 ID（ep-xxx）
+    ark_model_id = os.environ.get("ARK_MODEL_ID", "请在此处填入你的火山模型接入点id(ep-...)")
+    ark_api_key = os.environ.get("ARK_API_KEY", "")
+    
+    llm = ChatOpenAI(
+        model=ark_model_id,
+        api_key=ark_api_key,
+        base_url="https://ark.cn-beijing.volces.com/api/v3",
+        temperature=0.7
+    )
     structured_llm = llm.with_structured_output(AnalystOutput)
     
     # 4. 组装 Chain 并调用
@@ -67,10 +81,11 @@ def agent_a_analyst(state: StudioState) -> dict:
     print(f"✅ 解析完成！目标格式: {format_type} | 简报摘要: {brief[:30]}...")
     
     # 5. 返回要更新的状态字典
-    # 根据 LangGraph 的规范，这里返回的字典会合并/覆盖到原先的 State 中
+    # 返回了 RAG 捞到的品牌原则 brand_knowledge ，以便下个节点使用
     return {
         "content_brief": brief,
         "target_format": format_type,
+        "brand_knowledge": brand_rule,
         "current_agent": "Agent A (Analyst)",
-        "loop_count": state.get("loop_count", 0) # 保持或初始化 loop_count
+        "loop_count": state.get("loop_count", 0)
     }

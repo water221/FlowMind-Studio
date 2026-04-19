@@ -83,3 +83,10 @@ venv.bak/
 .Trashes
 ehthumbs.db
 Thumbs.db
+# DB checkpoints
+checkpoints.sqlite
+
+# API Cache
+__pycache__/*
+
+.chroma_db
